@@ -1,0 +1,10 @@
+.env
+payment-proofs/
+ff-battle-arena.db
+node_modules/
+.env
+*.db
+*.db-shm
+*.db-wal
+payment-proofs/
+database-backups/
