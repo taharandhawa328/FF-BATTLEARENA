@@ -3955,43 +3955,60 @@ app.use(
 // ==================================================
 // START SERVER
 // ==================================================
-createDatabaseBackup();
-cleanupOldDatabaseBackups();
-setInterval(() => {
+
+if (require.main === module) {
+
     createDatabaseBackup();
+
     cleanupOldDatabaseBackups();
-}, 6 * 60 * 60 * 1000);
-app.listen(
-    PORT,
-    function () {
 
-        console.log("");
+    setInterval(() => {
 
-        console.log(
-            "================================="
-        );
+        createDatabaseBackup();
 
-        console.log(
-            "FF BATTLE ARENA SERVER"
-        );
+        cleanupOldDatabaseBackups();
 
-        console.log(
-            "================================="
-        );
+    }, 6 * 60 * 60 * 1000);
 
-        console.log(
-            "Server running at:"
-        );
+    app.listen(
+        PORT,
+        function () {
 
-        console.log(
-            `http://localhost:${PORT}`
-        );
+            console.log("");
 
-        console.log(
-            "================================="
-        );
+            console.log(
+                "================================="
+            );
 
-        console.log("");
+            console.log(
+                "FF BATTLE ARENA SERVER"
+            );
 
-    }
-);
+            console.log(
+                "================================="
+            );
+
+            console.log(
+                "Server running at:"
+            );
+
+            console.log(
+                `http://localhost:${PORT}`
+            );
+
+            console.log(
+                "================================="
+            );
+
+            console.log("");
+
+        }
+    );
+
+}
+
+// ==================================================
+// EXPORT APP FOR VERCEL
+// ==================================================
+
+module.exports = app;
