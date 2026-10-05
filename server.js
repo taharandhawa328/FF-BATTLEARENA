@@ -14,6 +14,17 @@ const app = express();
 const PORT = 3000;
 const isProduction =
     process.env.NODE_ENV === "production";
+    // ==========================================
+// REQUEST BODY PARSER
+// ==========================================
+
+app.use(express.json());
+
+app.use(
+    express.urlencoded({
+        extended: true
+    })
+);
 // Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -530,14 +541,14 @@ const upload =
 // ==================================================
 // MIDDLEWARE
 // ==================================================
-app.use(helmet());
 app.use(
-    express.json()
-);
-
-app.use(
-    express.urlencoded({
-        extended: true
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                scriptSrc: ["'self'", "'unsafe-inline'"],
+                scriptSrcAttr: ["'unsafe-inline'"]
+            }
+        }
     })
 );
 
@@ -947,6 +958,7 @@ app.get(
 
 app.post(
     "/api/register",
+
     async function (
         req,
         res
@@ -954,42 +966,38 @@ app.post(
 
         try {
 
+            // ------------------------------------------
+            // SAFE REQUEST BODY
+            // ------------------------------------------
+
+            const body =
+                req.body || {};
+
+
             const username =
                 String(
-                    req.body.username || ""
-                ).trim();
+                    body.username || ""
+                )
+                .trim();
+
 
             const email =
                 String(
-                    req.body.email || ""
+                    body.email || ""
                 )
                 .trim()
                 .toLowerCase();
 
+
             const password =
                 String(
-                    req.body.password || ""
+                    body.password || ""
                 );
-// ------------------------------------------
-// INPUT LENGTH VALIDATION
-// ------------------------------------------
 
-if (
-    username.length > 30 ||
-    email.length > 100 ||
-    password.length > 100
-) {
 
-    return res.status(400).json({
-
-        success: false,
-
-        message:
-            "Input too long."
-
-    });
-
-}
+            // ------------------------------------------
+            // REQUIRED FIELDS
+            // ------------------------------------------
 
             if (
                 !username ||
@@ -1009,6 +1017,32 @@ if (
             }
 
 
+            // ------------------------------------------
+            // INPUT LENGTH
+            // ------------------------------------------
+
+            if (
+                username.length > 30 ||
+                email.length > 100 ||
+                password.length > 100
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Input too long."
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // PASSWORD LENGTH
+            // ------------------------------------------
+
             if (
                 password.length < 8
             ) {
@@ -1025,6 +1059,10 @@ if (
             }
 
 
+            // ------------------------------------------
+            // CHECK EXISTING USER
+            // ------------------------------------------
+
             const existingUser =
                 db.prepare(`
                     SELECT
@@ -1035,6 +1073,7 @@ if (
                     WHERE
                         username = ?
                         OR email = ?
+                    LIMIT 1
                 `).get(
                     username,
                     email
@@ -1043,7 +1082,43 @@ if (
 
             if (existingUser) {
 
-                return res.status(400).json({
+                if (
+                    existingUser.username
+                        .toLowerCase() ===
+                    username.toLowerCase()
+                ) {
+
+                    return res.status(409).json({
+
+                        success: false,
+
+                        message:
+                            "Username already exists."
+
+                    });
+
+                }
+
+
+                if (
+                    existingUser.email
+                        .toLowerCase() ===
+                    email
+                ) {
+
+                    return res.status(409).json({
+
+                        success: false,
+
+                        message:
+                            "Email already registered."
+
+                    });
+
+                }
+
+
+                return res.status(409).json({
 
                     success: false,
 
@@ -1055,12 +1130,20 @@ if (
             }
 
 
+            // ------------------------------------------
+            // HASH PASSWORD
+            // ------------------------------------------
+
             const hashedPassword =
                 await bcrypt.hash(
                     password,
                     12
                 );
 
+
+            // ------------------------------------------
+            // CREATE USER
+            // ------------------------------------------
 
             const result =
                 db.prepare(`
@@ -1078,6 +1161,10 @@ if (
                     hashedPassword
                 );
 
+
+            // ------------------------------------------
+            // SUCCESS
+            // ------------------------------------------
 
             return res.status(201).json({
 
@@ -1100,12 +1187,13 @@ if (
                 error
             );
 
+
             return res.status(500).json({
 
                 success: false,
 
                 message:
-                    "Server error"
+                    "Registration ke waqt server error aa gaya."
 
             });
 
@@ -1118,19 +1206,38 @@ if (
 // ==================================================
 // CUSTOMER LOGIN
 // ==================================================
+
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
+
+    windowMs:
+        15 * 60 * 1000,
+
+    max:
+        10,
+
     message: {
-        success: false,
-        message: "Too many login attempts. Please try again later."
+
+        success:
+            false,
+
+        message:
+            "Too many login attempts. Please try again later."
+
     },
-    standardHeaders: true,
-    legacyHeaders: false
+
+    standardHeaders:
+        true,
+
+    legacyHeaders:
+        false
+
 });
+
+
 app.post(
     "/api/login",
     loginLimiter,
+
     async function (
         req,
         res
@@ -1138,18 +1245,31 @@ app.post(
 
         try {
 
+            // ------------------------------------------
+            // SAFE REQUEST BODY
+            // ------------------------------------------
+
+            const body =
+                req.body || {};
+
+
             const email =
                 String(
-                    req.body.email || ""
+                    body.email || ""
                 )
                 .trim()
                 .toLowerCase();
 
+
             const password =
                 String(
-                    req.body.password || ""
+                    body.password || ""
                 );
 
+
+            // ------------------------------------------
+            // VALIDATION
+            // ------------------------------------------
 
             if (
                 !email ||
@@ -1158,7 +1278,8 @@ app.post(
 
                 return res.status(400).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Email and password are required"
@@ -1167,6 +1288,10 @@ app.post(
 
             }
 
+
+            // ------------------------------------------
+            // FIND USER
+            // ------------------------------------------
 
             const user =
                 db.prepare(`
@@ -1178,14 +1303,22 @@ app.post(
                         coins
                     FROM users
                     WHERE email = ?
-                `).get(email);
+                    LIMIT 1
+                `).get(
+                    email
+                );
 
+
+            // ------------------------------------------
+            // USER NOT FOUND
+            // ------------------------------------------
 
             if (!user) {
 
                 return res.status(401).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Invalid email or password"
@@ -1194,6 +1327,10 @@ app.post(
 
             }
 
+
+            // ------------------------------------------
+            // CHECK PASSWORD
+            // ------------------------------------------
 
             const passwordMatch =
                 await bcrypt.compare(
@@ -1206,7 +1343,8 @@ app.post(
 
                 return res.status(401).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Invalid email or password"
@@ -1216,24 +1354,40 @@ app.post(
             }
 
 
+            // ------------------------------------------
+            // CREATE USER SESSION
+            // ------------------------------------------
+
             const token =
                 createUserSession(
                     user.id
                 );
 
 
+            // ------------------------------------------
+            // SET SESSION COOKIE
+            // ------------------------------------------
+
             res.setHeader(
                 "Set-Cookie",
+
                 "ff_user_session=" +
-token +
-"; HttpOnly; Path=/; SameSite=Strict; Max-Age=604800" +
-(isProduction ? "; Secure" : "")
+                token +
+                "; HttpOnly; Path=/; SameSite=Strict; Max-Age=604800" +
+                (isProduction
+                    ? "; Secure"
+                    : "")
             );
 
 
+            // ------------------------------------------
+            // LOGIN SUCCESS
+            // ------------------------------------------
+
             return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 message:
                     "Login successful",
@@ -1265,9 +1419,11 @@ token +
                 error
             );
 
+
             return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Server error"
