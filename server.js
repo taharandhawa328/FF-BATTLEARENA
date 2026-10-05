@@ -9,9 +9,14 @@ const fs = require("fs");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
-const FileType = require("file-type");
 const app = express();
-const PORT = 3000;
+app.set("trust proxy", 1);
+
+const PORT = Number(process.env.PORT) || 3000;
+const DATA_DIR = path.resolve(process.env.DATA_DIR || __dirname);
+
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
 const isProduction =
     process.env.NODE_ENV === "production";
     // ==========================================
@@ -299,7 +304,7 @@ setInterval(() => {
 const db =
     new Database(
         path.join(
-            __dirname,
+            DATA_DIR,
             "ff-battle-arena.db"
         )
     );
@@ -311,7 +316,7 @@ db.pragma("journal_mode = WAL");
 
 const databaseBackupFolder =
     path.join(
-        __dirname,
+        DATA_DIR,
         "database-backups"
     );
 
@@ -425,7 +430,7 @@ function cleanupOldDatabaseBackups() {
 
 const paymentProofFolder =
     path.join(
-        __dirname,
+        DATA_DIR,
         "payment-proofs"
     );
 
@@ -1645,8 +1650,11 @@ app.post(
             // VALIDATE REAL FILE TYPE
             // ------------------------------------------
 
+            const { fileTypeFromFile } =
+                await import("file-type");
+
             const detectedType =
-                await FileType.fromFile(
+                await fileTypeFromFile(
                     req.file.path
                 );
 
@@ -4128,6 +4136,7 @@ if (require.main === module) {
 
     app.listen(
         PORT,
+        "0.0.0.0",
         function () {
 
             console.log("");
