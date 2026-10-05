@@ -1,14 +1,47 @@
-# Deploying FF Battle Arena on Render
+# Free hosting on alwaysdata
 
-This is a Node.js/Express app with a SQLite database and payment-proof image uploads. Deploy it as a **web service with persistent disk**, not as a static site (GitHub Pages cannot run its API).
+FF Battle Arena is a Node.js/Express app with a SQLite database and uploaded payment-proof images. alwaysdata's free offer supports Node.js and persistent account storage, so the database and uploads can survive app restarts. The free offer is limited to personal, ad-free use and has limited resources; do not use it for real-money transactions unless that use is permitted by the provider.
 
-## Render setup
+## 1. Create a free account
 
-[Start the Render deployment](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Ftaharandhawa328%2FFF-BATTLEARENA%2Ftree%2Farena%2F01a10abe-ff-battlearena), sign in to Render, and approve access to the GitHub repository. The setup page will show the resources and any charges before you approve deployment.
+Sign up for the alwaysdata Free offer: <https://www.alwaysdata.com/en/register/?p=2012>. It includes an `account.alwaysdata.net` site address. The current free offer has 1 GB SSD storage and 256 MB RAM; check the provider's terms and limits before using it.
 
-1. Confirm the repository and `arena/01a10abe-ff-battlearena` branch in Render's setup flow. If opening the dashboard manually, choose **New > Blueprint** and connect that branch.
-2. Review the Singapore web service and 5 GB persistent disk mounted at `/var/data`. Render may charge for the service and disk; check the displayed price before approving.
-3. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` when Render prompts for the unsynced variables. Use strong, unique values and keep them in Render's environment settings—never commit them to Git or share them in chat.
-4. After deployment, Render provides the public URL. Check `<your-service-url>/api/status`; the admin page is at `<your-service-url>/admin.html`.
+## 2. Select Node.js 22
 
-The SQLite database, database backups, and uploaded payment-proof images are all stored under `/var/data` so they survive redeploys. The service must stay as a single instance when using SQLite and a disk.
+In the alwaysdata dashboard, set the Node.js version to **22** under **Environment > Node.js** before installing dependencies.
+
+## 3. Copy the app to the account
+
+Use the account's SSH/web terminal and run:
+
+```sh
+mkdir -p ~/www
+cd ~/www
+git clone --branch arena/01a10abe-ff-battlearena https://github.com/taharandhawa328/FF-BATTLEARENA.git
+cd FF-BATTLEARENA
+npm ci
+```
+
+Keep the app directory under the account's home directory so its SQLite database and uploads are on the account's persistent storage.
+
+## 4. Set the admin credentials privately
+
+Create a `.env` file in `~/www/FF-BATTLEARENA` with your own values:
+
+```dotenv
+NODE_ENV=production
+ADMIN_USERNAME=choose-your-admin-name
+ADMIN_PASSWORD=use-a-long-unique-password
+```
+
+Do not commit `.env` or send its values in chat. The repository's `.gitignore` excludes it.
+
+## 5. Create the Node.js site
+
+In the alwaysdata dashboard:
+
+1. Go to **Web > Sites > Add a site**.
+2. Use your `account.alwaysdata.net` address, select **Node.js**, set the site path to `www/FF-BATTLEARENA`, and start it with `npm start` (or `node /home/ACCOUNT/www/FF-BATTLEARENA/server.js`, replacing `ACCOUNT` with your account name).
+3. The site provides its own `IP`/`HOST` and `PORT`; the server reads these automatically.
+
+When the site starts, verify `<your-address>/api/status`. The admin page is at `<your-address>/admin.html`.

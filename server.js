@@ -1,10 +1,12 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({
+    path: path.join(__dirname, ".env")
+});
 
 const express = require("express");
 const Database = require("better-sqlite3");
 const multer = require("multer");
 const bcrypt = require("bcrypt");
-const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
@@ -13,6 +15,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.IP || process.env.HOST || "0.0.0.0";
 const DATA_DIR = path.resolve(process.env.DATA_DIR || __dirname);
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -4136,7 +4139,7 @@ if (require.main === module) {
 
     app.listen(
         PORT,
-        "0.0.0.0",
+        HOST,
         function () {
 
             console.log("");
