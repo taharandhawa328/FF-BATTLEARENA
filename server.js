@@ -1399,12 +1399,14 @@ app.post(
                 req.body || {};
 
 
-            const email =
+            const identifier =
                 String(
-                    body.email || ""
+                    body.email ||
+                    body.identifier ||
+                    body.ffUid ||
+                    ""
                 )
-                .trim()
-                .toLowerCase();
+                .trim();
 
 
             const password =
@@ -1418,7 +1420,7 @@ app.post(
             // ------------------------------------------
 
             if (
-                !email ||
+                !identifier ||
                 !password
             ) {
 
@@ -1428,7 +1430,37 @@ app.post(
                         false,
 
                     message:
-                        "Email and password are required"
+                        "Email / Free Fire UID and password are required"
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // EMAIL YA FREE FIRE UID?
+            // ------------------------------------------
+
+            const isEmailLogin =
+                identifier.includes("@");
+
+
+            const isFfUidLogin =
+                /^[0-9]{6,15}$/.test(identifier);
+
+
+            if (
+                !isEmailLogin &&
+                !isFfUidLogin
+            ) {
+
+                return res.status(400).json({
+
+                    success:
+                        false,
+
+                    message:
+                        "Please enter a valid email or 6 to 15 digit Free Fire UID"
 
                 });
 
@@ -1440,21 +1472,37 @@ app.post(
             // ------------------------------------------
 
             const user =
-                db.prepare(`
-                    SELECT
-                        id,
-                        username,
-                        email,
-                        password,
-                        coins,
-                        ff_uid,
-                        ff_name
-                    FROM users
-                    WHERE email = ?
-                    LIMIT 1
-                `).get(
-                    email
-                );
+                isEmailLogin
+                    ? db.prepare(`
+                        SELECT
+                            id,
+                            username,
+                            email,
+                            password,
+                            coins,
+                            ff_uid,
+                            ff_name
+                        FROM users
+                        WHERE email = ?
+                        LIMIT 1
+                    `).get(
+                        identifier.toLowerCase()
+                    )
+                    : db.prepare(`
+                        SELECT
+                            id,
+                            username,
+                            email,
+                            password,
+                            coins,
+                            ff_uid,
+                            ff_name
+                        FROM users
+                        WHERE ff_uid = ?
+                        LIMIT 1
+                    `).get(
+                        identifier
+                    );
 
 
             // ------------------------------------------
@@ -1469,7 +1517,7 @@ app.post(
                         false,
 
                     message:
-                        "Invalid email or password"
+                        "Invalid login details or password"
 
                 });
 
@@ -1495,7 +1543,7 @@ app.post(
                         false,
 
                     message:
-                        "Invalid email or password"
+                        "Invalid login details or password"
 
                 });
 

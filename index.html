@@ -836,10 +836,19 @@
         </h2>
 
         <input
-            type="email"
+            type="text"
             id="loginEmail"
-            placeholder="Email"
+            placeholder="Email or Free Fire UID"
+            autocomplete="username"
         >
+
+        <p style="
+            color:#94a3b8;
+            font-size:13px;
+            margin:0 0 6px;
+        ">
+            Email ya apna Free Fire UID (Player ID) likh kar login karein.
+        </p>
 
         <input
             type="password"
@@ -2720,7 +2729,29 @@ async function loginUser() {
     if (!email || !password) {
 
         message.textContent =
-            "Please enter email and password.";
+            "Please enter email / Free Fire UID and password.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    /* EMAIL YA FREE FIRE UID CHECK */
+
+    const isEmailLogin =
+        email.includes("@");
+
+    const isFfUidLogin =
+        /^[0-9]{6,15}$/.test(email);
+
+
+    if (!isEmailLogin && !isFfUidLogin) {
+
+        message.textContent =
+            "Valid email ya 6 se 15 digits ka Free Fire UID likhein.";
 
         message.style.color =
             "red";
