@@ -773,26 +773,8 @@
 
         <input
             type="text"
-            id="username"
-            placeholder="Username"
-        >
-
-        <input
-            type="email"
-            id="email"
-            placeholder="Email"
-        >
-
-        <input
-            type="password"
-            id="password"
-            placeholder="Password"
-        >
-
-        <input
-            type="text"
             id="ffUid"
-            placeholder="Free Fire UID (Player ID)"
+            placeholder="Player UID (Free Fire UID)"
             inputmode="numeric"
             maxlength="15"
             autocomplete="off"
@@ -801,9 +783,16 @@
         <input
             type="text"
             id="ffName"
-            placeholder="Free Fire In-Game Name (IGN)"
+            placeholder="Player ID Name (In-Game Name)"
             maxlength="30"
             autocomplete="off"
+        >
+
+        <input
+            type="password"
+            id="password"
+            placeholder="Password (min 8 characters)"
+            autocomplete="new-password"
         >
 
         <button onclick="registerUser()">
@@ -2521,28 +2510,22 @@ async function updateFfProfile() {
 
 async function registerUser() {
 
-    const usernameElement =
-        getElement("username");
-
-    const emailElement =
-        getElement("email");
-
-    const passwordElement =
-        getElement("password");
-
     const ffUidElement =
         getElement("ffUid");
 
     const ffNameElement =
         getElement("ffName");
 
+    const passwordElement =
+        getElement("password");
+
     const message =
         getElement("registerMessage");
 
 
     if (
-        !usernameElement ||
-        !emailElement ||
+        !ffUidElement ||
+        !ffNameElement ||
         !passwordElement ||
         !message
     ) {
@@ -2552,47 +2535,22 @@ async function registerUser() {
     }
 
 
-    const username =
-        usernameElement.value.trim();
+    const ffUid =
+        ffUidElement.value.trim();
 
-    const email =
-        emailElement.value.trim();
+    const ffName =
+        ffNameElement.value.trim();
 
     const password =
         passwordElement.value;
 
-    const ffUid =
-        ffUidElement
-            ? ffUidElement.value.trim()
-            : "";
 
-    const ffName =
-        ffNameElement
-            ? ffNameElement.value.trim()
-            : "";
-
-
-    if (!username ||
-        !email ||
-        !password) {
-
-        message.textContent =
-            "Please fill all fields.";
-
-        message.style.color =
-            "red";
-
-        return;
-
-    }
-
-
-    /* FREE FIRE PROFILE VALIDATION */
+    /* PLAYER UID + ID NAME DONO LAZMI */
 
     if (!ffUid || !ffName) {
 
         message.textContent =
-            "Free Fire UID aur In-Game Name zaroor bharein.";
+            "Player UID aur Player ID Name dono zaroor bharein.";
 
         message.style.color =
             "red";
@@ -2605,7 +2563,7 @@ async function registerUser() {
     if (!/^[0-9]{6,15}$/.test(ffUid)) {
 
         message.textContent =
-            "Free Fire UID sirf 6 se 15 digits ka hona chahiye.";
+            "Player UID sirf 6 se 15 digits ka hona chahiye.";
 
         message.style.color =
             "red";
@@ -2618,7 +2576,20 @@ async function registerUser() {
     if (ffName.length < 2 || ffName.length > 30) {
 
         message.textContent =
-            "In-Game Name 2 se 30 characters ka hona chahiye.";
+            "Player ID Name 2 se 30 characters ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (!password || password.length < 8) {
+
+        message.textContent =
+            "Password kam se kam 8 characters ka hona chahiye.";
 
         message.style.color =
             "red";
@@ -2647,8 +2618,6 @@ async function registerUser() {
 
                     body:
                         JSON.stringify({
-                            username,
-                            email,
                             password,
                             ffUid,
                             ffName
@@ -2675,25 +2644,11 @@ async function registerUser() {
 
         if (response.ok) {
 
-            usernameElement.value = "";
+            ffUidElement.value = "";
 
-            emailElement.value = "";
+            ffNameElement.value = "";
 
             passwordElement.value = "";
-
-
-            if (ffUidElement) {
-
-                ffUidElement.value = "";
-
-            }
-
-
-            if (ffNameElement) {
-
-                ffNameElement.value = "";
-
-            }
 
 
             setTimeout(function() {

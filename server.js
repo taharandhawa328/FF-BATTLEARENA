@@ -621,9 +621,9 @@ db.exec(`
 
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-        username TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE,
 
-        email TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE,
 
         password TEXT NOT NULL,
 
@@ -673,6 +673,90 @@ if (
     db.exec(`
         ALTER TABLE users
         ADD COLUMN ff_name TEXT
+    `);
+
+}
+
+
+// ==================================================
+// USERS TABLE MIGRATION
+// (EMAIL / USERNAME OPTIONAL - PURANE DB KO REBUILD)
+// ==================================================
+
+const usersTableInfo =
+    db.prepare(
+        "PRAGMA table_info(users)"
+    ).all();
+
+
+const needsNullableProfileColumns =
+    usersTableInfo.some(
+        function (column) {
+
+            return (
+                (
+                    column.name === "email" ||
+                    column.name === "username"
+                ) &&
+                column.notnull === 1
+            );
+
+        }
+    );
+
+
+if (needsNullableProfileColumns) {
+
+    db.exec(`
+        BEGIN;
+
+        CREATE TABLE users_new (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            username TEXT UNIQUE,
+
+            email TEXT UNIQUE,
+
+            password TEXT NOT NULL,
+
+            coins INTEGER NOT NULL DEFAULT 0,
+
+            ff_uid TEXT,
+
+            ff_name TEXT,
+
+            created_at DATETIME
+                DEFAULT CURRENT_TIMESTAMP
+        );
+
+        INSERT INTO users_new
+        (
+            id,
+            username,
+            email,
+            password,
+            coins,
+            ff_uid,
+            ff_name,
+            created_at
+        )
+        SELECT
+            id,
+            username,
+            email,
+            password,
+            coins,
+            ff_uid,
+            ff_name,
+            created_at
+        FROM users;
+
+        DROP TABLE users;
+
+        ALTER TABLE users_new RENAME TO users;
+
+        COMMIT;
     `);
 
 }
@@ -999,6 +1083,58 @@ app.get(
 // REGISTER
 // ==================================================
 
+// ==================================================
+// UNIQUE USERNAME BANAO (PLAYER ID NAME SE)
+// ==================================================
+
+function buildUniqueUsername(baseName) {
+
+    let base =
+        String(baseName || "")
+        .trim()
+        .slice(0, 30);
+
+
+    if (!base) {
+
+        base = "player";
+
+    }
+
+
+    let candidate = base;
+
+    let counter = 0;
+
+
+    while (
+        db.prepare(`
+            SELECT id
+            FROM users
+            WHERE LOWER(username) = LOWER(?)
+            LIMIT 1
+        `).get(candidate)
+    ) {
+
+        counter++;
+
+        const suffix =
+            "-" + counter;
+
+        candidate =
+            base.slice(
+                0,
+                30 - suffix.length
+            ) + suffix;
+
+    }
+
+
+    return candidate;
+
+}
+
+
 app.post(
     "/api/register",
 
@@ -1054,12 +1190,31 @@ app.post(
 
             // ------------------------------------------
             // REQUIRED FIELDS
+            // (PASSWORD LAZMI, PLAYER UID + ID NAME
+            //  NEECHE VALIDATE HOTE HAIN)
+            // ------------------------------------------
+
+            if (!password) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Password is required"
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // EMAIL OPTIONAL HAI (AGAR DIYA HO TO VALID)
             // ------------------------------------------
 
             if (
-                !username ||
-                !email ||
-                !password
+                email &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
             ) {
 
                 return res.status(400).json({
@@ -1067,7 +1222,7 @@ app.post(
                     success: false,
 
                     message:
-                        "All fields are required"
+                        "Please enter a valid email address"
 
                 });
 
@@ -1171,33 +1326,27 @@ app.post(
 
 
             // ------------------------------------------
-            // CHECK EXISTING USER
+            // USERNAME
+            // (DIYA HO TO CHECK, WARNA AUTO BANAO)
             // ------------------------------------------
 
-            const existingUser =
-                db.prepare(`
-                    SELECT
-                        id,
-                        username,
-                        email
-                    FROM users
-                    WHERE
-                        username = ?
-                        OR email = ?
-                    LIMIT 1
-                `).get(
-                    username,
-                    email
-                );
+            let finalUsername;
 
 
-            if (existingUser) {
+            if (username) {
 
-                if (
-                    existingUser.username
-                        .toLowerCase() ===
-                    username.toLowerCase()
-                ) {
+                const usernameTaken =
+                    db.prepare(`
+                        SELECT id
+                        FROM users
+                        WHERE LOWER(username) = LOWER(?)
+                        LIMIT 1
+                    `).get(
+                        username
+                    );
+
+
+                if (usernameTaken) {
 
                     return res.status(409).json({
 
@@ -1211,11 +1360,36 @@ app.post(
                 }
 
 
-                if (
-                    existingUser.email
-                        .toLowerCase() ===
-                    email
-                ) {
+                finalUsername = username;
+
+            }
+
+            else {
+
+                finalUsername =
+                    buildUniqueUsername(ffName);
+
+            }
+
+
+            // ------------------------------------------
+            // EMAIL (SIRF TAB CHECK JAB DIYA HO)
+            // ------------------------------------------
+
+            if (email) {
+
+                const emailTaken =
+                    db.prepare(`
+                        SELECT id
+                        FROM users
+                        WHERE email = ?
+                        LIMIT 1
+                    `).get(
+                        email
+                    );
+
+
+                if (emailTaken) {
 
                     return res.status(409).json({
 
@@ -1227,16 +1401,6 @@ app.post(
                     });
 
                 }
-
-
-                return res.status(409).json({
-
-                    success: false,
-
-                    message:
-                        "Username or email already exists"
-
-                });
 
             }
 
@@ -1300,8 +1464,8 @@ app.post(
                     )
                     VALUES (?, ?, ?, 0, ?, ?)
                 `).run(
-                    username,
-                    email,
+                    finalUsername,
+                    email || null,
                     hashedPassword,
                     ffUid,
                     ffName
