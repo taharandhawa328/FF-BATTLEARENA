@@ -1403,8 +1403,21 @@ app.post(
                 String(
                     body.email ||
                     body.identifier ||
-                    body.ffUid ||
                     ""
+                )
+                .trim();
+
+
+            const ffUid =
+                String(
+                    body.ffUid || ""
+                )
+                .trim();
+
+
+            const ffName =
+                String(
+                    body.ffName || ""
                 )
                 .trim();
 
@@ -1416,13 +1429,10 @@ app.post(
 
 
             // ------------------------------------------
-            // VALIDATION
+            // PASSWORD LAZMI HAI
             // ------------------------------------------
 
-            if (
-                !identifier ||
-                !password
-            ) {
+            if (!password) {
 
                 return res.status(400).json({
 
@@ -1430,7 +1440,7 @@ app.post(
                         false,
 
                     message:
-                        "Email / Free Fire UID and password are required"
+                        "Password is required"
 
                 });
 
@@ -1438,42 +1448,135 @@ app.post(
 
 
             // ------------------------------------------
-            // EMAIL YA FREE FIRE UID?
+            // LOGIN MODE
+            // PLAYER UID + ID NAME  ya  EMAIL
             // ------------------------------------------
 
-            const isEmailLogin =
-                identifier.includes("@");
+            const isFfLogin =
+                !!(ffUid || ffName);
+
+            let user = null;
 
 
-            const isFfUidLogin =
-                /^[0-9]{6,15}$/.test(identifier);
+            if (isFfLogin) {
+
+                // --------------------------------------
+                // PLAYER UID + PLAYER ID NAME DONO LAZMI
+                // --------------------------------------
+
+                if (!ffUid || !ffName) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Player UID aur Player ID Name dono zaroor bharein"
+
+                    });
+
+                }
 
 
-            if (
-                !isEmailLogin &&
-                !isFfUidLogin
-            ) {
+                if (!/^[0-9]{6,15}$/.test(ffUid)) {
 
-                return res.status(400).json({
+                    return res.status(400).json({
 
-                    success:
-                        false,
+                        success:
+                            false,
 
-                    message:
-                        "Please enter a valid email or 6 to 15 digit Free Fire UID"
+                        message:
+                            "Player UID 6 se 15 digits ka hona chahiye"
 
-                });
+                    });
+
+                }
+
+
+                if (
+                    ffName.length < 2 ||
+                    ffName.length > 30
+                ) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Player ID Name 2 se 30 characters ka hona chahiye"
+
+                    });
+
+                }
+
+
+                // --------------------------------------
+                // UID + ID NAME DONO MATCH HON
+                // (ID NAME CASE-INSENSITIVE)
+                // --------------------------------------
+
+                user =
+                    db.prepare(`
+                        SELECT
+                            id,
+                            username,
+                            email,
+                            password,
+                            coins,
+                            ff_uid,
+                            ff_name
+                        FROM users
+                        WHERE
+                            ff_uid = ?
+                            AND LOWER(ff_name) = LOWER(?)
+                        LIMIT 1
+                    `).get(
+                        ffUid,
+                        ffName
+                    );
 
             }
 
+            else {
 
-            // ------------------------------------------
-            // FIND USER
-            // ------------------------------------------
+                // --------------------------------------
+                // EMAIL LOGIN (PURANE ACCOUNTS)
+                // --------------------------------------
 
-            const user =
-                isEmailLogin
-                    ? db.prepare(`
+                if (!identifier) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Player UID + Player ID Name ya Email zaroor bharein"
+
+                    });
+
+                }
+
+
+                if (!identifier.includes("@")) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Please enter a valid email address"
+
+                    });
+
+                }
+
+
+                user =
+                    db.prepare(`
                         SELECT
                             id,
                             username,
@@ -1487,27 +1590,20 @@ app.post(
                         LIMIT 1
                     `).get(
                         identifier.toLowerCase()
-                    )
-                    : db.prepare(`
-                        SELECT
-                            id,
-                            username,
-                            email,
-                            password,
-                            coins,
-                            ff_uid,
-                            ff_name
-                        FROM users
-                        WHERE ff_uid = ?
-                        LIMIT 1
-                    `).get(
-                        identifier
                     );
+
+            }
 
 
             // ------------------------------------------
             // USER NOT FOUND
             // ------------------------------------------
+
+            const invalidMessage =
+                isFfLogin
+                    ? "Player UID, Player ID Name ya password ghalat hai"
+                    : "Invalid email or password";
+
 
             if (!user) {
 
@@ -1517,7 +1613,7 @@ app.post(
                         false,
 
                     message:
-                        "Invalid login details or password"
+                        invalidMessage
 
                 });
 
@@ -1543,7 +1639,7 @@ app.post(
                         false,
 
                     message:
-                        "Invalid login details or password"
+                        invalidMessage
 
                 });
 

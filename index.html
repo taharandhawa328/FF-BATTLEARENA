@@ -835,25 +835,50 @@
             🔑 LOGIN
         </h2>
 
-        <input
-            type="text"
-            id="loginEmail"
-            placeholder="Email or Free Fire UID"
-            autocomplete="username"
-        >
+        <!-- PLAYER UID + ID NAME (MANDATORY) -->
 
-        <p style="
-            color:#94a3b8;
-            font-size:13px;
-            margin:0 0 6px;
-        ">
-            Email ya apna Free Fire UID (Player ID) likh kar login karein.
-        </p>
+        <div id="ffLoginFields">
+
+            <input
+                type="text"
+                id="loginFfUid"
+                placeholder="Player UID (Free Fire UID)"
+                inputmode="numeric"
+                maxlength="15"
+                autocomplete="off"
+            >
+
+            <input
+                type="text"
+                id="loginFfName"
+                placeholder="Player ID Name (In-Game Name)"
+                maxlength="30"
+                autocomplete="off"
+            >
+
+        </div>
+
+
+        <!-- EMAIL LOGIN (PURANE ACCOUNTS KE LIYE) -->
+
+        <div id="emailLoginFields"
+             style="display:none;">
+
+            <input
+                type="email"
+                id="loginEmail"
+                placeholder="Email"
+                autocomplete="username"
+            >
+
+        </div>
+
 
         <input
             type="password"
             id="loginPassword"
             placeholder="Password"
+            autocomplete="current-password"
         >
 
         <button onclick="loginUser()">
@@ -861,6 +886,13 @@
         </button>
 
         <p id="loginMessage"></p>
+
+        <button onclick="toggleLoginMethod()"
+                id="loginMethodToggle">
+
+            📧 Email se login karein
+
+        </button>
 
         <button onclick="goToRegister()">
             Create New Account
@@ -2696,7 +2728,80 @@ async function registerUser() {
    LOGIN
 ================================= */
 
+let loginMethod = "ff";
+
+
+/* =================================
+   LOGIN METHOD: PLAYER UID YA EMAIL
+================================= */
+
+function toggleLoginMethod() {
+
+    const ffFields =
+        getElement("ffLoginFields");
+
+    const emailFields =
+        getElement("emailLoginFields");
+
+    const toggle =
+        getElement("loginMethodToggle");
+
+    const message =
+        getElement("loginMessage");
+
+
+    loginMethod =
+        loginMethod === "ff"
+            ? "email"
+            : "ff";
+
+
+    if (ffFields) {
+
+        ffFields.style.display =
+            loginMethod === "ff"
+                ? "block"
+                : "none";
+
+    }
+
+
+    if (emailFields) {
+
+        emailFields.style.display =
+            loginMethod === "email"
+                ? "block"
+                : "none";
+
+    }
+
+
+    if (toggle) {
+
+        toggle.textContent =
+            loginMethod === "ff"
+                ? "📧 Email se login karein"
+                : "🎮 Player UID se login karein";
+
+    }
+
+
+    if (message) {
+
+        message.textContent = "";
+
+    }
+
+}
+
+
 async function loginUser() {
+
+    const ffUidElement =
+        getElement("loginFfUid");
+
+    const ffNameElement =
+        getElement("loginFfName");
 
     const emailElement =
         getElement("loginEmail");
@@ -2708,28 +2813,21 @@ async function loginUser() {
         getElement("loginMessage");
 
 
-    if (
-        !emailElement ||
-        !passwordElement ||
-        !message
-    ) {
+    if (!passwordElement || !message) {
 
         return;
 
     }
 
-
-    const email =
-        emailElement.value.trim();
 
     const password =
         passwordElement.value;
 
 
-    if (!email || !password) {
+    if (!password) {
 
         message.textContent =
-            "Please enter email / Free Fire UID and password.";
+            "Please enter password.";
 
         message.style.color =
             "red";
@@ -2739,19 +2837,92 @@ async function loginUser() {
     }
 
 
-    /* EMAIL YA FREE FIRE UID CHECK */
+    /* ===============================
+       PLAYER UID + ID NAME LOGIN
+    =============================== */
 
-    const isEmailLogin =
-        email.includes("@");
+    if (loginMethod === "ff") {
 
-    const isFfUidLogin =
-        /^[0-9]{6,15}$/.test(email);
+        const ffUid =
+            ffUidElement
+                ? ffUidElement.value.trim()
+                : "";
+
+        const ffName =
+            ffNameElement
+                ? ffNameElement.value.trim()
+                : "";
 
 
-    if (!isEmailLogin && !isFfUidLogin) {
+        if (!ffUid || !ffName) {
+
+            message.textContent =
+                "Player UID aur Player ID Name dono zaroor bharein.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        if (!/^[0-9]{6,15}$/.test(ffUid)) {
+
+            message.textContent =
+                "Player UID sirf 6 se 15 digits ka hona chahiye.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        if (ffName.length < 2 || ffName.length > 30) {
+
+            message.textContent =
+                "Player ID Name 2 se 30 characters ka hona chahiye.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        loginRequest(
+
+            {
+                ffUid,
+                ffName,
+                password
+            },
+
+            message
+        );
+
+        return;
+
+    }
+
+
+    /* ===============================
+       EMAIL LOGIN (PURANE ACCOUNTS)
+    =============================== */
+
+    const email =
+        emailElement
+            ? emailElement.value.trim()
+            : "";
+
+
+    if (!email || !email.includes("@")) {
 
         message.textContent =
-            "Valid email ya 6 se 15 digits ka Free Fire UID likhein.";
+            "Please enter a valid email address.";
 
         message.style.color =
             "red";
@@ -2760,6 +2931,21 @@ async function loginUser() {
 
     }
 
+
+    loginRequest(
+
+        {
+            email,
+            password
+        },
+
+        message
+    );
+
+}
+
+
+async function loginRequest(payload, message) {
 
     try {
 
@@ -2779,10 +2965,7 @@ async function loginUser() {
                         "same-origin",
 
                     body:
-                        JSON.stringify({
-                            email,
-                            password
-                        })
+                        JSON.stringify(payload)
 
                 }
             );
