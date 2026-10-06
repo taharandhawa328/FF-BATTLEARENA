@@ -231,6 +231,27 @@
 
 
         /* ================================
+           FF PROFILE
+        ================================= */
+
+        #profileFfUid,
+        #profileFfName {
+            width: 100%;
+            padding: 13px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid #555;
+        }
+
+        #ffProfileBox button {
+            width: 100%;
+            padding: 13px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+
+        /* ================================
            ROOM DETAILS
         ================================= */
 
@@ -379,6 +400,10 @@
 
     <p id="menuUsername">
         Guest
+    </p>
+
+    <p id="menuFfName">
+        -
     </p>
 
     <p id="menuCoins">
@@ -764,6 +789,23 @@
             placeholder="Password"
         >
 
+        <input
+            type="text"
+            id="ffUid"
+            placeholder="Free Fire UID (Player ID)"
+            inputmode="numeric"
+            maxlength="15"
+            autocomplete="off"
+        >
+
+        <input
+            type="text"
+            id="ffName"
+            placeholder="Free Fire In-Game Name (IGN)"
+            maxlength="30"
+            autocomplete="off"
+        >
+
         <button onclick="registerUser()">
             CREATE ACCOUNT
         </button>
@@ -1032,12 +1074,83 @@
         </p>
 
         <h3>
+            🎮 Free Fire UID (Player ID)
+        </h3>
+
+        <p id="accountFfUid">
+            -
+        </p>
+
+        <h3>
+            🏅 Free Fire In-Game Name
+        </h3>
+
+        <p id="accountFfName">
+            -
+        </p>
+
+        <h3>
             🪙 Coins
         </h3>
 
         <p id="accountCoins">
             0
         </p>
+
+        <hr>
+
+
+        <!-- =================================
+             FREE FIRE PROFILE
+        ================================== -->
+
+        <div id="ffProfileBox" style="
+            margin:25px 0;
+            padding:20px;
+            background:#0d1421;
+            border:1px solid #273449;
+            border-radius:12px;
+        ">
+
+            <h3 style="
+                color:#38bdf8;
+                margin-bottom:10px;
+            ">
+                🎮 FREE FIRE PROFILE
+            </h3>
+
+            <p style="
+                color:#94a3b8;
+                margin-bottom:12px;
+            ">
+                Apna Free Fire UID aur In-Game Name
+                yahan update karein.
+            </p>
+
+            <input
+                type="text"
+                id="profileFfUid"
+                placeholder="Free Fire UID (Player ID)"
+                inputmode="numeric"
+                maxlength="15"
+                autocomplete="off"
+            >
+
+            <input
+                type="text"
+                id="profileFfName"
+                placeholder="Free Fire In-Game Name (IGN)"
+                maxlength="30"
+                autocomplete="off"
+            >
+
+            <button onclick="updateFfProfile()">
+                💾 SAVE FF DETAILS
+            </button>
+
+            <p id="ffProfileMessage"></p>
+
+        </div>
 
         <hr>
 
@@ -2189,6 +2302,179 @@ loadWithdrawalHistory();
 
 
 /* =================================
+   UPDATE FF PROFILE
+================================= */
+
+async function updateFfProfile() {
+
+    const ffUidInput =
+        getElement("profileFfUid");
+
+    const ffNameInput =
+        getElement("profileFfName");
+
+    const message =
+        getElement("ffProfileMessage");
+
+
+    if (
+        !ffUidInput ||
+        !ffNameInput ||
+        !message
+    ) {
+
+        return;
+
+    }
+
+
+    if (!currentUserId) {
+
+        goToLogin();
+
+        return;
+
+    }
+
+
+    const ffUid =
+        ffUidInput.value.trim();
+
+    const ffName =
+        ffNameInput.value.trim();
+
+
+    if (!ffUid || !ffName) {
+
+        message.textContent =
+            "Free Fire UID aur In-Game Name dono bharein.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (!/^[0-9]{6,15}$/.test(ffUid)) {
+
+        message.textContent =
+            "Free Fire UID sirf 6 se 15 digits ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (ffName.length < 2 || ffName.length > 30) {
+
+        message.textContent =
+            "In-Game Name 2 se 30 characters ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    message.textContent =
+        "FF details save ho rahi hain...";
+
+    message.style.color =
+        "#fbbf24";
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/update-ff-profile",
+                {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    credentials:
+                        "same-origin",
+
+                    body:
+                        JSON.stringify({
+                            ffUid,
+                            ffName
+                        })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            message.textContent =
+                data.message ||
+                "FF details save nahi ho sakin.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        message.textContent =
+            data.message ||
+            "FF details save ho gaye.";
+
+        message.style.color =
+            "lime";
+
+
+        if (data.user) {
+
+            currentUserId =
+                data.user.id;
+
+            updateUserUI(
+                data.user
+            );
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "FF profile error:",
+            error
+        );
+
+
+        message.textContent =
+            "Server se connection nahi ho raha.";
+
+        message.style.color =
+            "red";
+
+    }
+
+}
+
+
+/* =================================
    REGISTER
 ================================= */
 
@@ -2202,6 +2488,12 @@ async function registerUser() {
 
     const passwordElement =
         getElement("password");
+
+    const ffUidElement =
+        getElement("ffUid");
+
+    const ffNameElement =
+        getElement("ffName");
 
     const message =
         getElement("registerMessage");
@@ -2228,6 +2520,16 @@ async function registerUser() {
     const password =
         passwordElement.value;
 
+    const ffUid =
+        ffUidElement
+            ? ffUidElement.value.trim()
+            : "";
+
+    const ffName =
+        ffNameElement
+            ? ffNameElement.value.trim()
+            : "";
+
 
     if (!username ||
         !email ||
@@ -2235,6 +2537,47 @@ async function registerUser() {
 
         message.textContent =
             "Please fill all fields.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    /* FREE FIRE PROFILE VALIDATION */
+
+    if (!ffUid || !ffName) {
+
+        message.textContent =
+            "Free Fire UID aur In-Game Name zaroor bharein.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (!/^[0-9]{6,15}$/.test(ffUid)) {
+
+        message.textContent =
+            "Free Fire UID sirf 6 se 15 digits ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (ffName.length < 2 || ffName.length > 30) {
+
+        message.textContent =
+            "In-Game Name 2 se 30 characters ka hona chahiye.";
 
         message.style.color =
             "red";
@@ -2265,7 +2608,9 @@ async function registerUser() {
                         JSON.stringify({
                             username,
                             email,
-                            password
+                            password,
+                            ffUid,
+                            ffName
                         })
 
                 }
@@ -2294,6 +2639,20 @@ async function registerUser() {
             emailElement.value = "";
 
             passwordElement.value = "";
+
+
+            if (ffUidElement) {
+
+                ffUidElement.value = "";
+
+            }
+
+
+            if (ffNameElement) {
+
+                ffNameElement.value = "";
+
+            }
 
 
             setTimeout(function() {
@@ -2491,6 +2850,75 @@ function updateUserUI(user) {
     }
 
 
+    /* FREE FIRE PROFILE */
+
+    const accountFfUid =
+        getElement("accountFfUid");
+
+    const accountFfName =
+        getElement("accountFfName");
+
+    const menuFfName =
+        getElement("menuFfName");
+
+
+    if (accountFfUid) {
+
+        accountFfUid.textContent =
+            user.ff_uid || "-";
+
+    }
+
+
+    if (accountFfName) {
+
+        accountFfName.textContent =
+            user.ff_name || "-";
+
+    }
+
+
+    if (menuFfName) {
+
+        menuFfName.textContent =
+            user.ff_name
+                ? "🏅 " + user.ff_name
+                : "-";
+
+    }
+
+
+    /* FF PROFILE EDIT FIELDS */
+
+    const profileFfUid =
+        getElement("profileFfUid");
+
+    const profileFfName =
+        getElement("profileFfName");
+
+
+    if (
+        profileFfUid &&
+        document.activeElement !== profileFfUid
+    ) {
+
+        profileFfUid.value =
+            user.ff_uid || "";
+
+    }
+
+
+    if (
+        profileFfName &&
+        document.activeElement !== profileFfName
+    ) {
+
+        profileFfName.value =
+            user.ff_name || "";
+
+    }
+
+
     updateWalletBalance(coins);
 
 
@@ -2654,6 +3082,15 @@ async function logoutUser() {
     const accountCoins =
         getElement("accountCoins");
 
+    const accountFfUid =
+        getElement("accountFfUid");
+
+    const accountFfName =
+        getElement("accountFfName");
+
+    const menuFfName =
+        getElement("menuFfName");
+
 
     if (accountUsername) {
 
@@ -2667,6 +3104,61 @@ async function logoutUser() {
 
         accountCoins.textContent =
             "0";
+
+    }
+
+
+    if (accountFfUid) {
+
+        accountFfUid.textContent =
+            "-";
+
+    }
+
+
+    if (accountFfName) {
+
+        accountFfName.textContent =
+            "-";
+
+    }
+
+
+    if (menuFfName) {
+
+        menuFfName.textContent =
+            "-";
+
+    }
+
+
+    const profileFfUid =
+        getElement("profileFfUid");
+
+    const profileFfName =
+        getElement("profileFfName");
+
+    const ffProfileMessage =
+        getElement("ffProfileMessage");
+
+
+    if (profileFfUid) {
+
+        profileFfUid.value = "";
+
+    }
+
+
+    if (profileFfName) {
+
+        profileFfName.value = "";
+
+    }
+
+
+    if (ffProfileMessage) {
+
+        ffProfileMessage.textContent = "";
 
     }
 

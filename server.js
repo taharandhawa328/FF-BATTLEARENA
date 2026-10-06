@@ -629,10 +629,53 @@ db.exec(`
 
         coins INTEGER NOT NULL DEFAULT 0,
 
+        ff_uid TEXT,
+
+        ff_name TEXT,
+
         created_at DATETIME
             DEFAULT CURRENT_TIMESTAMP
     )
 `);
+
+
+// ==================================================
+// USERS TABLE MIGRATION
+// (PURANI DATABASE MEIN FREE FIRE COLUMNS ADD KARO)
+// ==================================================
+
+const existingUserColumns =
+    db.prepare(
+        "PRAGMA table_info(users)"
+    ).all().map(
+        function (column) {
+            return column.name;
+        }
+    );
+
+
+if (
+    !existingUserColumns.includes("ff_uid")
+) {
+
+    db.exec(`
+        ALTER TABLE users
+        ADD COLUMN ff_uid TEXT
+    `);
+
+}
+
+
+if (
+    !existingUserColumns.includes("ff_name")
+) {
+
+    db.exec(`
+        ALTER TABLE users
+        ADD COLUMN ff_name TEXT
+    `);
+
+}
 
 
 // ==================================================
@@ -995,6 +1038,20 @@ app.post(
                 );
 
 
+            const ffUid =
+                String(
+                    body.ffUid || ""
+                )
+                .trim();
+
+
+            const ffName =
+                String(
+                    body.ffName || ""
+                )
+                .trim();
+
+
             // ------------------------------------------
             // REQUIRED FIELDS
             // ------------------------------------------
@@ -1011,6 +1068,60 @@ app.post(
 
                     message:
                         "All fields are required"
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // FREE FIRE PROFILE FIELDS
+            // ------------------------------------------
+
+            if (
+                !ffUid ||
+                !ffName
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID and In-Game Name are required"
+
+                });
+
+            }
+
+
+            if (
+                !/^[0-9]{6,15}$/.test(ffUid)
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID must be 6 to 15 digits"
+
+                });
+
+            }
+
+
+            if (
+                ffName.length < 2 ||
+                ffName.length > 30
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "In-Game Name must be 2 to 30 characters"
 
                 });
 
@@ -1131,6 +1242,37 @@ app.post(
 
 
             // ------------------------------------------
+            // CHECK DUPLICATE FREE FIRE UID
+            // ------------------------------------------
+
+            const existingFfUid =
+                db.prepare(`
+                    SELECT
+                        id,
+                        username
+                    FROM users
+                    WHERE ff_uid = ?
+                    LIMIT 1
+                `).get(
+                    ffUid
+                );
+
+
+            if (existingFfUid) {
+
+                return res.status(409).json({
+
+                    success: false,
+
+                    message:
+                        "This Free Fire UID is already registered."
+
+                });
+
+            }
+
+
+            // ------------------------------------------
             // HASH PASSWORD
             // ------------------------------------------
 
@@ -1152,13 +1294,17 @@ app.post(
                         username,
                         email,
                         password,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     )
-                    VALUES (?, ?, ?, 0)
+                    VALUES (?, ?, ?, 0, ?, ?)
                 `).run(
                     username,
                     email,
-                    hashedPassword
+                    hashedPassword,
+                    ffUid,
+                    ffName
                 );
 
 
@@ -1300,7 +1446,9 @@ app.post(
                         username,
                         email,
                         password,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     FROM users
                     WHERE email = ?
                     LIMIT 1
@@ -1404,7 +1552,13 @@ app.post(
                         user.email,
 
                     coins:
-                        user.coins
+                        user.coins,
+
+                    ff_uid:
+                        user.ff_uid,
+
+                    ff_name:
+                        user.ff_name
 
                 }
 
@@ -1474,7 +1628,9 @@ app.get(
                         id,
                         username,
                         email,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     FROM users
                     WHERE id = ?
                 `).get(
@@ -1571,6 +1727,193 @@ app.post(
                 "Logged out successfully"
 
         });
+
+    }
+);
+
+
+// ==================================================
+// UPDATE FREE FIRE PROFILE
+// ==================================================
+
+app.post(
+    "/api/update-ff-profile",
+
+    requireUser,
+
+    function (
+        req,
+        res
+    ) {
+
+        try {
+
+            const body =
+                req.body || {};
+
+
+            const ffUid =
+                String(
+                    body.ffUid || ""
+                )
+                .trim();
+
+
+            const ffName =
+                String(
+                    body.ffName || ""
+                )
+                .trim();
+
+
+            if (
+                !ffUid ||
+                !ffName
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID and In-Game Name are required"
+
+                });
+
+            }
+
+
+            if (
+                !/^[0-9]{6,15}$/.test(ffUid)
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID must be 6 to 15 digits"
+
+                });
+
+            }
+
+
+            if (
+                ffName.length < 2 ||
+                ffName.length > 30
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "In-Game Name must be 2 to 30 characters"
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // UID KISI AUR ACCOUNT PAR TOH NAHI?
+            // ------------------------------------------
+
+            const existingFfUid =
+                db.prepare(`
+                    SELECT
+                        id
+                    FROM users
+                    WHERE
+                        ff_uid = ?
+                        AND id != ?
+                    LIMIT 1
+                `).get(
+                    ffUid,
+                    req.userId
+                );
+
+
+            if (existingFfUid) {
+
+                return res.status(409).json({
+
+                    success: false,
+
+                    message:
+                        "This Free Fire UID is already registered."
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // UPDATE PROFILE
+            // ------------------------------------------
+
+            db.prepare(`
+                UPDATE users
+                SET
+                    ff_uid = ?,
+                    ff_name = ?
+                WHERE id = ?
+            `).run(
+                ffUid,
+                ffName,
+                req.userId
+            );
+
+
+            const user =
+                db.prepare(`
+                    SELECT
+                        id,
+                        username,
+                        email,
+                        coins,
+                        ff_uid,
+                        ff_name
+                    FROM users
+                    WHERE id = ?
+                `).get(
+                    req.userId
+                );
+
+
+            return res.json({
+
+                success: true,
+
+                message:
+                    "Free Fire profile update ho gaya.",
+
+                user:
+                    user
+
+            });
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "UPDATE FF PROFILE ERROR:",
+                error
+            );
+
+
+            return res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Server error"
+
+            });
+
+        }
 
     }
 );
@@ -2445,7 +2788,9 @@ if (!validAccount) {
                         id,
                         username,
                         email,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     FROM users
                     WHERE id = ?
                 `).get(
@@ -2554,7 +2899,9 @@ if (!validAccount) {
                         id,
                         username,
                         email,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     FROM users
                     WHERE id = ?
                 `).get(
@@ -2907,6 +3254,8 @@ app.get(
                         username,
                         email,
                         coins,
+                        ff_uid,
+                        ff_name,
                         created_at
                     FROM users
                     ORDER BY id DESC
