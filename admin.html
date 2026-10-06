@@ -850,6 +850,8 @@ async function openUsers() {
                     <th>ID</th>
                     <th>Username</th>
                     <th>Email</th>
+                    <th>FF UID</th>
+                    <th>FF Name</th>
                     <th>Coins</th>
                     <th>Created</th>
                 </tr>
@@ -867,11 +869,25 @@ async function openUsers() {
                         </td>
 
                         <td>
-                            ${user.username}
+                            ${user.username || "-"}
                         </td>
 
                         <td>
-                            ${user.email}
+                            ${user.email || "-"}
+                        </td>
+
+                        <td style="
+                            color:#38bdf8;
+                            font-weight:bold;
+                        ">
+                            ${user.ff_uid || "-"}
+                        </td>
+
+                        <td style="
+                            color:#f472b6;
+                            font-weight:bold;
+                        ">
+                            ${user.ff_name || "-"}
                         </td>
 
                         <td style="

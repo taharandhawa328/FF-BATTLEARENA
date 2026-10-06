@@ -621,18 +621,145 @@ db.exec(`
 
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-        username TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE,
 
-        email TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE,
 
         password TEXT NOT NULL,
 
         coins INTEGER NOT NULL DEFAULT 0,
 
+        ff_uid TEXT,
+
+        ff_name TEXT,
+
         created_at DATETIME
             DEFAULT CURRENT_TIMESTAMP
     )
 `);
+
+
+// ==================================================
+// USERS TABLE MIGRATION
+// (PURANI DATABASE MEIN FREE FIRE COLUMNS ADD KARO)
+// ==================================================
+
+const existingUserColumns =
+    db.prepare(
+        "PRAGMA table_info(users)"
+    ).all().map(
+        function (column) {
+            return column.name;
+        }
+    );
+
+
+if (
+    !existingUserColumns.includes("ff_uid")
+) {
+
+    db.exec(`
+        ALTER TABLE users
+        ADD COLUMN ff_uid TEXT
+    `);
+
+}
+
+
+if (
+    !existingUserColumns.includes("ff_name")
+) {
+
+    db.exec(`
+        ALTER TABLE users
+        ADD COLUMN ff_name TEXT
+    `);
+
+}
+
+
+// ==================================================
+// USERS TABLE MIGRATION
+// (EMAIL / USERNAME OPTIONAL - PURANE DB KO REBUILD)
+// ==================================================
+
+const usersTableInfo =
+    db.prepare(
+        "PRAGMA table_info(users)"
+    ).all();
+
+
+const needsNullableProfileColumns =
+    usersTableInfo.some(
+        function (column) {
+
+            return (
+                (
+                    column.name === "email" ||
+                    column.name === "username"
+                ) &&
+                column.notnull === 1
+            );
+
+        }
+    );
+
+
+if (needsNullableProfileColumns) {
+
+    db.exec(`
+        BEGIN;
+
+        CREATE TABLE users_new (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            username TEXT UNIQUE,
+
+            email TEXT UNIQUE,
+
+            password TEXT NOT NULL,
+
+            coins INTEGER NOT NULL DEFAULT 0,
+
+            ff_uid TEXT,
+
+            ff_name TEXT,
+
+            created_at DATETIME
+                DEFAULT CURRENT_TIMESTAMP
+        );
+
+        INSERT INTO users_new
+        (
+            id,
+            username,
+            email,
+            password,
+            coins,
+            ff_uid,
+            ff_name,
+            created_at
+        )
+        SELECT
+            id,
+            username,
+            email,
+            password,
+            coins,
+            ff_uid,
+            ff_name,
+            created_at
+        FROM users;
+
+        DROP TABLE users;
+
+        ALTER TABLE users_new RENAME TO users;
+
+        COMMIT;
+    `);
+
+}
 
 
 // ==================================================
@@ -956,6 +1083,58 @@ app.get(
 // REGISTER
 // ==================================================
 
+// ==================================================
+// UNIQUE USERNAME BANAO (PLAYER ID NAME SE)
+// ==================================================
+
+function buildUniqueUsername(baseName) {
+
+    let base =
+        String(baseName || "")
+        .trim()
+        .slice(0, 30);
+
+
+    if (!base) {
+
+        base = "player";
+
+    }
+
+
+    let candidate = base;
+
+    let counter = 0;
+
+
+    while (
+        db.prepare(`
+            SELECT id
+            FROM users
+            WHERE LOWER(username) = LOWER(?)
+            LIMIT 1
+        `).get(candidate)
+    ) {
+
+        counter++;
+
+        const suffix =
+            "-" + counter;
+
+        candidate =
+            base.slice(
+                0,
+                30 - suffix.length
+            ) + suffix;
+
+    }
+
+
+    return candidate;
+
+}
+
+
 app.post(
     "/api/register",
 
@@ -995,14 +1174,47 @@ app.post(
                 );
 
 
+            const ffUid =
+                String(
+                    body.ffUid || ""
+                )
+                .trim();
+
+
+            const ffName =
+                String(
+                    body.ffName || ""
+                )
+                .trim();
+
+
             // ------------------------------------------
             // REQUIRED FIELDS
+            // (PASSWORD LAZMI, PLAYER UID + ID NAME
+            //  NEECHE VALIDATE HOTE HAIN)
+            // ------------------------------------------
+
+            if (!password) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Password is required"
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // EMAIL OPTIONAL HAI (AGAR DIYA HO TO VALID)
             // ------------------------------------------
 
             if (
-                !username ||
-                !email ||
-                !password
+                email &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
             ) {
 
                 return res.status(400).json({
@@ -1010,7 +1222,61 @@ app.post(
                     success: false,
 
                     message:
-                        "All fields are required"
+                        "Please enter a valid email address"
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // FREE FIRE PROFILE FIELDS
+            // ------------------------------------------
+
+            if (
+                !ffUid ||
+                !ffName
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID and In-Game Name are required"
+
+                });
+
+            }
+
+
+            if (
+                !/^[0-9]{6,15}$/.test(ffUid)
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID must be 6 to 15 digits"
+
+                });
+
+            }
+
+
+            if (
+                ffName.length < 2 ||
+                ffName.length > 30
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "In-Game Name must be 2 to 30 characters"
 
                 });
 
@@ -1060,33 +1326,27 @@ app.post(
 
 
             // ------------------------------------------
-            // CHECK EXISTING USER
+            // USERNAME
+            // (DIYA HO TO CHECK, WARNA AUTO BANAO)
             // ------------------------------------------
 
-            const existingUser =
-                db.prepare(`
-                    SELECT
-                        id,
-                        username,
-                        email
-                    FROM users
-                    WHERE
-                        username = ?
-                        OR email = ?
-                    LIMIT 1
-                `).get(
-                    username,
-                    email
-                );
+            let finalUsername;
 
 
-            if (existingUser) {
+            if (username) {
 
-                if (
-                    existingUser.username
-                        .toLowerCase() ===
-                    username.toLowerCase()
-                ) {
+                const usernameTaken =
+                    db.prepare(`
+                        SELECT id
+                        FROM users
+                        WHERE LOWER(username) = LOWER(?)
+                        LIMIT 1
+                    `).get(
+                        username
+                    );
+
+
+                if (usernameTaken) {
 
                     return res.status(409).json({
 
@@ -1100,11 +1360,36 @@ app.post(
                 }
 
 
-                if (
-                    existingUser.email
-                        .toLowerCase() ===
-                    email
-                ) {
+                finalUsername = username;
+
+            }
+
+            else {
+
+                finalUsername =
+                    buildUniqueUsername(ffName);
+
+            }
+
+
+            // ------------------------------------------
+            // EMAIL (SIRF TAB CHECK JAB DIYA HO)
+            // ------------------------------------------
+
+            if (email) {
+
+                const emailTaken =
+                    db.prepare(`
+                        SELECT id
+                        FROM users
+                        WHERE email = ?
+                        LIMIT 1
+                    `).get(
+                        email
+                    );
+
+
+                if (emailTaken) {
 
                     return res.status(409).json({
 
@@ -1117,13 +1402,34 @@ app.post(
 
                 }
 
+            }
+
+
+            // ------------------------------------------
+            // CHECK DUPLICATE FREE FIRE UID
+            // ------------------------------------------
+
+            const existingFfUid =
+                db.prepare(`
+                    SELECT
+                        id,
+                        username
+                    FROM users
+                    WHERE ff_uid = ?
+                    LIMIT 1
+                `).get(
+                    ffUid
+                );
+
+
+            if (existingFfUid) {
 
                 return res.status(409).json({
 
                     success: false,
 
                     message:
-                        "Username or email already exists"
+                        "This Free Fire UID is already registered."
 
                 });
 
@@ -1152,13 +1458,17 @@ app.post(
                         username,
                         email,
                         password,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     )
-                    VALUES (?, ?, ?, 0)
+                    VALUES (?, ?, ?, 0, ?, ?)
                 `).run(
-                    username,
-                    email,
-                    hashedPassword
+                    finalUsername,
+                    email || null,
+                    hashedPassword,
+                    ffUid,
+                    ffName
                 );
 
 
@@ -1253,12 +1563,27 @@ app.post(
                 req.body || {};
 
 
-            const email =
+            const identifier =
                 String(
-                    body.email || ""
+                    body.email ||
+                    body.identifier ||
+                    ""
                 )
-                .trim()
-                .toLowerCase();
+                .trim();
+
+
+            const ffUid =
+                String(
+                    body.ffUid || ""
+                )
+                .trim();
+
+
+            const ffName =
+                String(
+                    body.ffName || ""
+                )
+                .trim();
 
 
             const password =
@@ -1268,13 +1593,10 @@ app.post(
 
 
             // ------------------------------------------
-            // VALIDATION
+            // PASSWORD LAZMI HAI
             // ------------------------------------------
 
-            if (
-                !email ||
-                !password
-            ) {
+            if (!password) {
 
                 return res.status(400).json({
 
@@ -1282,7 +1604,7 @@ app.post(
                         false,
 
                     message:
-                        "Email and password are required"
+                        "Password is required"
 
                 });
 
@@ -1290,28 +1612,162 @@ app.post(
 
 
             // ------------------------------------------
-            // FIND USER
+            // LOGIN MODE
+            // PLAYER UID + ID NAME  ya  EMAIL
             // ------------------------------------------
 
-            const user =
-                db.prepare(`
-                    SELECT
-                        id,
-                        username,
-                        email,
-                        password,
-                        coins
-                    FROM users
-                    WHERE email = ?
-                    LIMIT 1
-                `).get(
-                    email
-                );
+            const isFfLogin =
+                !!(ffUid || ffName);
+
+            let user = null;
+
+
+            if (isFfLogin) {
+
+                // --------------------------------------
+                // PLAYER UID + PLAYER ID NAME DONO LAZMI
+                // --------------------------------------
+
+                if (!ffUid || !ffName) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Player UID aur Player ID Name dono zaroor bharein"
+
+                    });
+
+                }
+
+
+                if (!/^[0-9]{6,15}$/.test(ffUid)) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Player UID 6 se 15 digits ka hona chahiye"
+
+                    });
+
+                }
+
+
+                if (
+                    ffName.length < 2 ||
+                    ffName.length > 30
+                ) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Player ID Name 2 se 30 characters ka hona chahiye"
+
+                    });
+
+                }
+
+
+                // --------------------------------------
+                // UID + ID NAME DONO MATCH HON
+                // (ID NAME CASE-INSENSITIVE)
+                // --------------------------------------
+
+                user =
+                    db.prepare(`
+                        SELECT
+                            id,
+                            username,
+                            email,
+                            password,
+                            coins,
+                            ff_uid,
+                            ff_name
+                        FROM users
+                        WHERE
+                            ff_uid = ?
+                            AND LOWER(ff_name) = LOWER(?)
+                        LIMIT 1
+                    `).get(
+                        ffUid,
+                        ffName
+                    );
+
+            }
+
+            else {
+
+                // --------------------------------------
+                // EMAIL LOGIN (PURANE ACCOUNTS)
+                // --------------------------------------
+
+                if (!identifier) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Player UID + Player ID Name ya Email zaroor bharein"
+
+                    });
+
+                }
+
+
+                if (!identifier.includes("@")) {
+
+                    return res.status(400).json({
+
+                        success:
+                            false,
+
+                        message:
+                            "Please enter a valid email address"
+
+                    });
+
+                }
+
+
+                user =
+                    db.prepare(`
+                        SELECT
+                            id,
+                            username,
+                            email,
+                            password,
+                            coins,
+                            ff_uid,
+                            ff_name
+                        FROM users
+                        WHERE email = ?
+                        LIMIT 1
+                    `).get(
+                        identifier.toLowerCase()
+                    );
+
+            }
 
 
             // ------------------------------------------
             // USER NOT FOUND
             // ------------------------------------------
+
+            const invalidMessage =
+                isFfLogin
+                    ? "Player UID, Player ID Name ya password ghalat hai"
+                    : "Invalid email or password";
+
 
             if (!user) {
 
@@ -1321,7 +1777,7 @@ app.post(
                         false,
 
                     message:
-                        "Invalid email or password"
+                        invalidMessage
 
                 });
 
@@ -1347,7 +1803,7 @@ app.post(
                         false,
 
                     message:
-                        "Invalid email or password"
+                        invalidMessage
 
                 });
 
@@ -1404,7 +1860,13 @@ app.post(
                         user.email,
 
                     coins:
-                        user.coins
+                        user.coins,
+
+                    ff_uid:
+                        user.ff_uid,
+
+                    ff_name:
+                        user.ff_name
 
                 }
 
@@ -1474,7 +1936,9 @@ app.get(
                         id,
                         username,
                         email,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     FROM users
                     WHERE id = ?
                 `).get(
@@ -1571,6 +2035,193 @@ app.post(
                 "Logged out successfully"
 
         });
+
+    }
+);
+
+
+// ==================================================
+// UPDATE FREE FIRE PROFILE
+// ==================================================
+
+app.post(
+    "/api/update-ff-profile",
+
+    requireUser,
+
+    function (
+        req,
+        res
+    ) {
+
+        try {
+
+            const body =
+                req.body || {};
+
+
+            const ffUid =
+                String(
+                    body.ffUid || ""
+                )
+                .trim();
+
+
+            const ffName =
+                String(
+                    body.ffName || ""
+                )
+                .trim();
+
+
+            if (
+                !ffUid ||
+                !ffName
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID and In-Game Name are required"
+
+                });
+
+            }
+
+
+            if (
+                !/^[0-9]{6,15}$/.test(ffUid)
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Free Fire UID must be 6 to 15 digits"
+
+                });
+
+            }
+
+
+            if (
+                ffName.length < 2 ||
+                ffName.length > 30
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "In-Game Name must be 2 to 30 characters"
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // UID KISI AUR ACCOUNT PAR TOH NAHI?
+            // ------------------------------------------
+
+            const existingFfUid =
+                db.prepare(`
+                    SELECT
+                        id
+                    FROM users
+                    WHERE
+                        ff_uid = ?
+                        AND id != ?
+                    LIMIT 1
+                `).get(
+                    ffUid,
+                    req.userId
+                );
+
+
+            if (existingFfUid) {
+
+                return res.status(409).json({
+
+                    success: false,
+
+                    message:
+                        "This Free Fire UID is already registered."
+
+                });
+
+            }
+
+
+            // ------------------------------------------
+            // UPDATE PROFILE
+            // ------------------------------------------
+
+            db.prepare(`
+                UPDATE users
+                SET
+                    ff_uid = ?,
+                    ff_name = ?
+                WHERE id = ?
+            `).run(
+                ffUid,
+                ffName,
+                req.userId
+            );
+
+
+            const user =
+                db.prepare(`
+                    SELECT
+                        id,
+                        username,
+                        email,
+                        coins,
+                        ff_uid,
+                        ff_name
+                    FROM users
+                    WHERE id = ?
+                `).get(
+                    req.userId
+                );
+
+
+            return res.json({
+
+                success: true,
+
+                message:
+                    "Free Fire profile update ho gaya.",
+
+                user:
+                    user
+
+            });
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "UPDATE FF PROFILE ERROR:",
+                error
+            );
+
+
+            return res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Server error"
+
+            });
+
+        }
 
     }
 );
@@ -2445,7 +3096,9 @@ if (!validAccount) {
                         id,
                         username,
                         email,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     FROM users
                     WHERE id = ?
                 `).get(
@@ -2554,7 +3207,9 @@ if (!validAccount) {
                         id,
                         username,
                         email,
-                        coins
+                        coins,
+                        ff_uid,
+                        ff_name
                     FROM users
                     WHERE id = ?
                 `).get(
@@ -2907,6 +3562,8 @@ app.get(
                         username,
                         email,
                         coins,
+                        ff_uid,
+                        ff_name,
                         created_at
                     FROM users
                     ORDER BY id DESC

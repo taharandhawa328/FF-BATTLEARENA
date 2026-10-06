@@ -231,6 +231,27 @@
 
 
         /* ================================
+           FF PROFILE
+        ================================= */
+
+        #profileFfUid,
+        #profileFfName {
+            width: 100%;
+            padding: 13px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid #555;
+        }
+
+        #ffProfileBox button {
+            width: 100%;
+            padding: 13px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+
+        /* ================================
            ROOM DETAILS
         ================================= */
 
@@ -379,6 +400,10 @@
 
     <p id="menuUsername">
         Guest
+    </p>
+
+    <p id="menuFfName">
+        -
     </p>
 
     <p id="menuCoins">
@@ -748,20 +773,26 @@
 
         <input
             type="text"
-            id="username"
-            placeholder="Username"
+            id="ffUid"
+            placeholder="Player UID (Free Fire UID)"
+            inputmode="numeric"
+            maxlength="15"
+            autocomplete="off"
         >
 
         <input
-            type="email"
-            id="email"
-            placeholder="Email"
+            type="text"
+            id="ffName"
+            placeholder="Player ID Name (In-Game Name)"
+            maxlength="30"
+            autocomplete="off"
         >
 
         <input
             type="password"
             id="password"
-            placeholder="Password"
+            placeholder="Password (min 8 characters)"
+            autocomplete="new-password"
         >
 
         <button onclick="registerUser()">
@@ -793,16 +824,50 @@
             🔑 LOGIN
         </h2>
 
-        <input
-            type="email"
-            id="loginEmail"
-            placeholder="Email"
-        >
+        <!-- PLAYER UID + ID NAME (MANDATORY) -->
+
+        <div id="ffLoginFields">
+
+            <input
+                type="text"
+                id="loginFfUid"
+                placeholder="Player UID (Free Fire UID)"
+                inputmode="numeric"
+                maxlength="15"
+                autocomplete="off"
+            >
+
+            <input
+                type="text"
+                id="loginFfName"
+                placeholder="Player ID Name (In-Game Name)"
+                maxlength="30"
+                autocomplete="off"
+            >
+
+        </div>
+
+
+        <!-- EMAIL LOGIN (PURANE ACCOUNTS KE LIYE) -->
+
+        <div id="emailLoginFields"
+             style="display:none;">
+
+            <input
+                type="email"
+                id="loginEmail"
+                placeholder="Email"
+                autocomplete="username"
+            >
+
+        </div>
+
 
         <input
             type="password"
             id="loginPassword"
             placeholder="Password"
+            autocomplete="current-password"
         >
 
         <button onclick="loginUser()">
@@ -810,6 +875,13 @@
         </button>
 
         <p id="loginMessage"></p>
+
+        <button onclick="toggleLoginMethod()"
+                id="loginMethodToggle">
+
+            📧 Email se login karein
+
+        </button>
 
         <button onclick="goToRegister()">
             Create New Account
@@ -1032,12 +1104,83 @@
         </p>
 
         <h3>
+            🎮 Free Fire UID (Player ID)
+        </h3>
+
+        <p id="accountFfUid">
+            -
+        </p>
+
+        <h3>
+            🏅 Free Fire In-Game Name
+        </h3>
+
+        <p id="accountFfName">
+            -
+        </p>
+
+        <h3>
             🪙 Coins
         </h3>
 
         <p id="accountCoins">
             0
         </p>
+
+        <hr>
+
+
+        <!-- =================================
+             FREE FIRE PROFILE
+        ================================== -->
+
+        <div id="ffProfileBox" style="
+            margin:25px 0;
+            padding:20px;
+            background:#0d1421;
+            border:1px solid #273449;
+            border-radius:12px;
+        ">
+
+            <h3 style="
+                color:#38bdf8;
+                margin-bottom:10px;
+            ">
+                🎮 FREE FIRE PROFILE
+            </h3>
+
+            <p style="
+                color:#94a3b8;
+                margin-bottom:12px;
+            ">
+                Apna Free Fire UID aur In-Game Name
+                yahan update karein.
+            </p>
+
+            <input
+                type="text"
+                id="profileFfUid"
+                placeholder="Free Fire UID (Player ID)"
+                inputmode="numeric"
+                maxlength="15"
+                autocomplete="off"
+            >
+
+            <input
+                type="text"
+                id="profileFfName"
+                placeholder="Free Fire In-Game Name (IGN)"
+                maxlength="30"
+                autocomplete="off"
+            >
+
+            <button onclick="updateFfProfile()">
+                💾 SAVE FF DETAILS
+            </button>
+
+            <p id="ffProfileMessage"></p>
+
+        </div>
 
         <hr>
 
@@ -2189,16 +2332,189 @@ loadWithdrawalHistory();
 
 
 /* =================================
+   UPDATE FF PROFILE
+================================= */
+
+async function updateFfProfile() {
+
+    const ffUidInput =
+        getElement("profileFfUid");
+
+    const ffNameInput =
+        getElement("profileFfName");
+
+    const message =
+        getElement("ffProfileMessage");
+
+
+    if (
+        !ffUidInput ||
+        !ffNameInput ||
+        !message
+    ) {
+
+        return;
+
+    }
+
+
+    if (!currentUserId) {
+
+        goToLogin();
+
+        return;
+
+    }
+
+
+    const ffUid =
+        ffUidInput.value.trim();
+
+    const ffName =
+        ffNameInput.value.trim();
+
+
+    if (!ffUid || !ffName) {
+
+        message.textContent =
+            "Free Fire UID aur In-Game Name dono bharein.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (!/^[0-9]{6,15}$/.test(ffUid)) {
+
+        message.textContent =
+            "Free Fire UID sirf 6 se 15 digits ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (ffName.length < 2 || ffName.length > 30) {
+
+        message.textContent =
+            "In-Game Name 2 se 30 characters ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    message.textContent =
+        "FF details save ho rahi hain...";
+
+    message.style.color =
+        "#fbbf24";
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/update-ff-profile",
+                {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    credentials:
+                        "same-origin",
+
+                    body:
+                        JSON.stringify({
+                            ffUid,
+                            ffName
+                        })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            message.textContent =
+                data.message ||
+                "FF details save nahi ho sakin.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        message.textContent =
+            data.message ||
+            "FF details save ho gaye.";
+
+        message.style.color =
+            "lime";
+
+
+        if (data.user) {
+
+            currentUserId =
+                data.user.id;
+
+            updateUserUI(
+                data.user
+            );
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "FF profile error:",
+            error
+        );
+
+
+        message.textContent =
+            "Server se connection nahi ho raha.";
+
+        message.style.color =
+            "red";
+
+    }
+
+}
+
+
+/* =================================
    REGISTER
 ================================= */
 
 async function registerUser() {
 
-    const usernameElement =
-        getElement("username");
+    const ffUidElement =
+        getElement("ffUid");
 
-    const emailElement =
-        getElement("email");
+    const ffNameElement =
+        getElement("ffName");
 
     const passwordElement =
         getElement("password");
@@ -2208,8 +2524,8 @@ async function registerUser() {
 
 
     if (
-        !usernameElement ||
-        !emailElement ||
+        !ffUidElement ||
+        !ffNameElement ||
         !passwordElement ||
         !message
     ) {
@@ -2219,22 +2535,61 @@ async function registerUser() {
     }
 
 
-    const username =
-        usernameElement.value.trim();
+    const ffUid =
+        ffUidElement.value.trim();
 
-    const email =
-        emailElement.value.trim();
+    const ffName =
+        ffNameElement.value.trim();
 
     const password =
         passwordElement.value;
 
 
-    if (!username ||
-        !email ||
-        !password) {
+    /* PLAYER UID + ID NAME DONO LAZMI */
+
+    if (!ffUid || !ffName) {
 
         message.textContent =
-            "Please fill all fields.";
+            "Player UID aur Player ID Name dono zaroor bharein.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (!/^[0-9]{6,15}$/.test(ffUid)) {
+
+        message.textContent =
+            "Player UID sirf 6 se 15 digits ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (ffName.length < 2 || ffName.length > 30) {
+
+        message.textContent =
+            "Player ID Name 2 se 30 characters ka hona chahiye.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    if (!password || password.length < 8) {
+
+        message.textContent =
+            "Password kam se kam 8 characters ka hona chahiye.";
 
         message.style.color =
             "red";
@@ -2263,9 +2618,9 @@ async function registerUser() {
 
                     body:
                         JSON.stringify({
-                            username,
-                            email,
-                            password
+                            password,
+                            ffUid,
+                            ffName
                         })
 
                 }
@@ -2289,9 +2644,9 @@ async function registerUser() {
 
         if (response.ok) {
 
-            usernameElement.value = "";
+            ffUidElement.value = "";
 
-            emailElement.value = "";
+            ffNameElement.value = "";
 
             passwordElement.value = "";
 
@@ -2328,7 +2683,80 @@ async function registerUser() {
    LOGIN
 ================================= */
 
+let loginMethod = "ff";
+
+
+/* =================================
+   LOGIN METHOD: PLAYER UID YA EMAIL
+================================= */
+
+function toggleLoginMethod() {
+
+    const ffFields =
+        getElement("ffLoginFields");
+
+    const emailFields =
+        getElement("emailLoginFields");
+
+    const toggle =
+        getElement("loginMethodToggle");
+
+    const message =
+        getElement("loginMessage");
+
+
+    loginMethod =
+        loginMethod === "ff"
+            ? "email"
+            : "ff";
+
+
+    if (ffFields) {
+
+        ffFields.style.display =
+            loginMethod === "ff"
+                ? "block"
+                : "none";
+
+    }
+
+
+    if (emailFields) {
+
+        emailFields.style.display =
+            loginMethod === "email"
+                ? "block"
+                : "none";
+
+    }
+
+
+    if (toggle) {
+
+        toggle.textContent =
+            loginMethod === "ff"
+                ? "📧 Email se login karein"
+                : "🎮 Player UID se login karein";
+
+    }
+
+
+    if (message) {
+
+        message.textContent = "";
+
+    }
+
+}
+
+
 async function loginUser() {
+
+    const ffUidElement =
+        getElement("loginFfUid");
+
+    const ffNameElement =
+        getElement("loginFfName");
 
     const emailElement =
         getElement("loginEmail");
@@ -2340,28 +2768,21 @@ async function loginUser() {
         getElement("loginMessage");
 
 
-    if (
-        !emailElement ||
-        !passwordElement ||
-        !message
-    ) {
+    if (!passwordElement || !message) {
 
         return;
 
     }
 
 
-    const email =
-        emailElement.value.trim();
-
     const password =
         passwordElement.value;
 
 
-    if (!email || !password) {
+    if (!password) {
 
         message.textContent =
-            "Please enter email and password.";
+            "Please enter password.";
 
         message.style.color =
             "red";
@@ -2370,6 +2791,116 @@ async function loginUser() {
 
     }
 
+
+    /* ===============================
+       PLAYER UID + ID NAME LOGIN
+    =============================== */
+
+    if (loginMethod === "ff") {
+
+        const ffUid =
+            ffUidElement
+                ? ffUidElement.value.trim()
+                : "";
+
+        const ffName =
+            ffNameElement
+                ? ffNameElement.value.trim()
+                : "";
+
+
+        if (!ffUid || !ffName) {
+
+            message.textContent =
+                "Player UID aur Player ID Name dono zaroor bharein.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        if (!/^[0-9]{6,15}$/.test(ffUid)) {
+
+            message.textContent =
+                "Player UID sirf 6 se 15 digits ka hona chahiye.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        if (ffName.length < 2 || ffName.length > 30) {
+
+            message.textContent =
+                "Player ID Name 2 se 30 characters ka hona chahiye.";
+
+            message.style.color =
+                "red";
+
+            return;
+
+        }
+
+
+        loginRequest(
+
+            {
+                ffUid,
+                ffName,
+                password
+            },
+
+            message
+        );
+
+        return;
+
+    }
+
+
+    /* ===============================
+       EMAIL LOGIN (PURANE ACCOUNTS)
+    =============================== */
+
+    const email =
+        emailElement
+            ? emailElement.value.trim()
+            : "";
+
+
+    if (!email || !email.includes("@")) {
+
+        message.textContent =
+            "Please enter a valid email address.";
+
+        message.style.color =
+            "red";
+
+        return;
+
+    }
+
+
+    loginRequest(
+
+        {
+            email,
+            password
+        },
+
+        message
+    );
+
+}
+
+
+async function loginRequest(payload, message) {
 
     try {
 
@@ -2389,10 +2920,7 @@ async function loginUser() {
                         "same-origin",
 
                     body:
-                        JSON.stringify({
-                            email,
-                            password
-                        })
+                        JSON.stringify(payload)
 
                 }
             );
@@ -2487,6 +3015,75 @@ function updateUserUI(user) {
 
         accountUsername.textContent =
             username;
+
+    }
+
+
+    /* FREE FIRE PROFILE */
+
+    const accountFfUid =
+        getElement("accountFfUid");
+
+    const accountFfName =
+        getElement("accountFfName");
+
+    const menuFfName =
+        getElement("menuFfName");
+
+
+    if (accountFfUid) {
+
+        accountFfUid.textContent =
+            user.ff_uid || "-";
+
+    }
+
+
+    if (accountFfName) {
+
+        accountFfName.textContent =
+            user.ff_name || "-";
+
+    }
+
+
+    if (menuFfName) {
+
+        menuFfName.textContent =
+            user.ff_name
+                ? "🏅 " + user.ff_name
+                : "-";
+
+    }
+
+
+    /* FF PROFILE EDIT FIELDS */
+
+    const profileFfUid =
+        getElement("profileFfUid");
+
+    const profileFfName =
+        getElement("profileFfName");
+
+
+    if (
+        profileFfUid &&
+        document.activeElement !== profileFfUid
+    ) {
+
+        profileFfUid.value =
+            user.ff_uid || "";
+
+    }
+
+
+    if (
+        profileFfName &&
+        document.activeElement !== profileFfName
+    ) {
+
+        profileFfName.value =
+            user.ff_name || "";
 
     }
 
@@ -2654,6 +3251,15 @@ async function logoutUser() {
     const accountCoins =
         getElement("accountCoins");
 
+    const accountFfUid =
+        getElement("accountFfUid");
+
+    const accountFfName =
+        getElement("accountFfName");
+
+    const menuFfName =
+        getElement("menuFfName");
+
 
     if (accountUsername) {
 
@@ -2667,6 +3273,61 @@ async function logoutUser() {
 
         accountCoins.textContent =
             "0";
+
+    }
+
+
+    if (accountFfUid) {
+
+        accountFfUid.textContent =
+            "-";
+
+    }
+
+
+    if (accountFfName) {
+
+        accountFfName.textContent =
+            "-";
+
+    }
+
+
+    if (menuFfName) {
+
+        menuFfName.textContent =
+            "-";
+
+    }
+
+
+    const profileFfUid =
+        getElement("profileFfUid");
+
+    const profileFfName =
+        getElement("profileFfName");
+
+    const ffProfileMessage =
+        getElement("ffProfileMessage");
+
+
+    if (profileFfUid) {
+
+        profileFfUid.value = "";
+
+    }
+
+
+    if (profileFfName) {
+
+        profileFfName.value = "";
+
+    }
+
+
+    if (ffProfileMessage) {
+
+        ffProfileMessage.textContent = "";
 
     }
 
